@@ -21,16 +21,5 @@
       lineinfile:
         path: /etc/zabbix/zabbix_agentd.conf
         regexp: '^Server='
-        line: "Server={{ current_server.stdout.split(',') + [new_zabbix_ip] | unique | join(',') }}"
-      notify: restart zabbix-agent
-
-    - name: Get current ServerActive value
-      shell: grep '^ServerActive=' /etc/zabbix/zabbix_agentd.conf | cut -d= -f2
-      register: current_server_active
-
-    - name: Update ServerActive parameter (append if missing)
-      lineinfile:
-        path: /etc/zabbix/zabbix_agentd.conf
-        regexp: '^ServerActive='
-        line: "ServerActive={{ current_server_active.stdout.split(',') + [new_zabbix_ip] | unique | join(',') }}"
+        line: "{{ new_zabbix_ip | unique | join(',') }}"
       notify: restart zabbix-agent
