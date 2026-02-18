@@ -1,0 +1,36 @@
+- name: Append Zabbix Server IP if not exists
+  hosts: zabbix_agents
+  become: yes
+
+  vars:
+    new_zabbix_ip: 10.10.10.12
+
+  handlers:
+    - name: restart zabbix-agent
+      service:
+        name: zabbix-agent
+        state: restarted
+
+  tasks:
+
+    - name: Get current Server value
+      shell: grep '^Server=' /etc/zabbix/zabbix_agentd.conf | cut -d= -f2
+      register: current_server
+
+    - name: Update Server parameter (append if missing)
+      lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^Server='
+        line: "Server={{ current_server.stdout.split(',') + [new_zabbix_ip] | unique | join(',') }}"
+      notify: restart zabbix-agent
+
+    - name: Get current ServerActive value
+      shell: grep '^ServerActive=' /etc/zabbix/zabbix_agentd.conf | cut -d= -f2
+      register: current_server_active
+
+    - name: Update ServerActive parameter (append if missing)
+      lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^ServerActive='
+        line: "ServerActive={{ current_server_active.stdout.split(',') + [new_zabbix_ip] | unique | join(',') }}"
+      notify: restart zabbix-agent
