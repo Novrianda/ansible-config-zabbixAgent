@@ -3,7 +3,7 @@
   become: yes
 
   vars:
-    new_zabbix_ip: "10.10.10.15"
+    new_zabbix_ip: "10.10.10.12"
 
   handlers:
     - name: restart zabbix-agent
@@ -13,23 +13,28 @@
 
   tasks:
 
-    - name: Ensure Server line exists
+    - name: Get current Server value
+      shell: awk -F= '/^\s*Server\s*=/ {print $2}' /etc/zabbix/zabbix_agentd.conf
+      register: current_server
+      changed_when: false
+
+    - name: Build updated Server list
+      set_fact:
+        updated_server: >-
+          {{
+            (
+              (current_server.stdout.split(',') if current_server.stdout != '' else [])
+              + [new_zabbix_ip]
+            )
+            | map('trim')
+            | unique
+            | join(',')
+          }}
+
+    - name: Update Server parameter
       lineinfile:
         path: /etc/zabbix/zabbix_agentd.conf
         regexp: '^\s*Server\s*='
-        line: "Server={{ new_zabbix_ip }}"
+        line: "Server={{ updated_server }}"
         insertafter: EOF
-      register: server_line
-
-    - name: Append IP if missing
-      when: server_line.changed == false
-      shell: |
-        current=$(grep -E '^\s*Server\s*=' /etc/zabbix/zabbix_agentd.conf | cut -d= -f2)
-        if ! echo "$current" | grep -qw "{{ new_zabbix_ip }}"; then
-          new=$(echo "$current,{{ new_zabbix_ip }}" | tr -s ',' | sed 's/^,//')
-          sed -i "s|^\s*Server\s*=.*|Server=$new|" /etc/zabbix/zabbix_agentd.conf
-          echo changed
-        fi
-      register: append_result
-      changed_when: "'changed' in append_result.stdout"
       notify: restart zabbix-agent
