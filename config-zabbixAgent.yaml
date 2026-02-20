@@ -1,9 +1,9 @@
-- name: Set Zabbix Server IP on Agent
+- name: Append Zabbix Server IP on Agent
   hosts: all
   become: yes
 
   vars:
-    zabbix_server_ip: 10.10.10.5
+    new_zabbix_ip: "10.10.10.5"
 
   handlers:
     - name: restart zabbix-agent
@@ -13,10 +13,35 @@
 
   tasks:
 
+    - name: Read current config
+      slurp:
+        path: /etc/zabbix/zabbix_agentd.conf
+      register: zabbix_conf
+
+    - name: Extract current Server value
+      set_fact:
+        current_server: >-
+          {{
+            (zabbix_conf.content | b64decode |
+             regex_search('^Server=(.*)', '\\1', multiline=True))
+            | default('')
+          }}
+
+    - name: Build new Server list
+      set_fact:
+        updated_server: >-
+          {{
+            (
+              (current_server.split(',') if current_server != '' else [])
+              + [new_zabbix_ip]
+            )
+            | unique
+            | join(',')
+          }}
+
     - name: Update Server parameter
       lineinfile:
         path: /etc/zabbix/zabbix_agentd.conf
         regexp: '^Server='
-        line: "Server={{ zabbix_server_ip }}"
-        backrefs: no
+        line: "Server={{ updated_server }}"
       notify: restart zabbix-agent
