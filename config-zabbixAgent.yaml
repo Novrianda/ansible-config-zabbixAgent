@@ -42,6 +42,7 @@
     - name: Update Server parameter
       lineinfile:
         path: /etc/zabbix/zabbix_agentd.conf
-        regexp: '^Server='
+        regexp: '^Server\s*='
         line: "Server={{ updated_server }}"
-      notify: restart zabbix-agent
+        insertafter: EOF
+        notify: restart zabbix-agent
