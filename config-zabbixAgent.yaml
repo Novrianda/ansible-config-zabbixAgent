@@ -13,36 +13,23 @@
 
   tasks:
 
-    - name: Read current config
-      slurp:
-        path: /etc/zabbix/zabbix_agentd.conf
-      register: zabbix_conf
-
-    - name: Extract current Server value
-      set_fact:
-        current_server: >-
-          {{
-            (zabbix_conf.content | b64decode |
-             regex_search('^Server=(.*)', '\\1', multiline=True))
-            | default('')
-          }}
-
-    - name: Build new Server list
-      set_fact:
-        updated_server: >-
-          {{
-            (
-              (current_server.split(',') if current_server != '' else [])
-              + [new_zabbix_ip]
-            )
-            | unique
-            | join(',')
-          }}
-
-    - name: Update Server parameter
+    - name: Ensure Server line exists
       lineinfile:
         path: /etc/zabbix/zabbix_agentd.conf
-        regexp: '^Server\s*='
-        line: "Server={{ updated_server }}"
+        regexp: '^\s*Server\s*='
+        line: "Server={{ new_zabbix_ip }}"
         insertafter: EOF
-        notify: restart zabbix-agent
+      register: server_line
+
+    - name: Append IP if missing
+      when: server_line.changed == false
+      shell: |
+        current=$(grep -E '^\s*Server\s*=' /etc/zabbix/zabbix_agentd.conf | cut -d= -f2)
+        if ! echo "$current" | grep -qw "{{ new_zabbix_ip }}"; then
+          new=$(echo "$current,{{ new_zabbix_ip }}" | tr -s ',' | sed 's/^,//')
+          sed -i "s|^\s*Server\s*=.*|Server=$new|" /etc/zabbix/zabbix_agentd.conf
+          echo changed
+        fi
+      register: append_result
+      changed_when: "'changed' in append_result.stdout"
+      notify: restart zabbix-agent
