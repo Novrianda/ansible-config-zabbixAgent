@@ -3,7 +3,7 @@
   become: yes
 
   vars:
-    new_zabbix_ip: "10.10.10.208"
+    new_zabbix_ip: "10.10.10.209"
 
   handlers:
     - name: restart zabbix-agent
